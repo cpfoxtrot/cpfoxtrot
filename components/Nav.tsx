@@ -7,6 +7,8 @@ import { routes } from "@/lib/catalogs/routes";
 export default function Nav() {
   const pathname = usePathname();
 
+  if (pathname === "/login") return null;
+
   return (
     <nav className="nav">
       <div className="nav-inner">
