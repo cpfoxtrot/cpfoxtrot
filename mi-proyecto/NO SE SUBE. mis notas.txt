@@ -1,0 +1,13 @@
+- Crear proyecto en supabase
+- Crear repositorio en GitHub vacío (sin readme)
+- Sube los ficheros arrastrando la carpeta entera al repositorio en la web de GitHub
+
+C) Desplegar en Vercel
+
+Ve a vercel.com y entra con tu cuenta GitHub.
+Pulsa "Add New Project" → importa el repositorio mi-proyecto.
+Vercel detecta Next.js automáticamente. No toques nada del build.
+Antes de pulsar Deploy, ve a "Environment Variables" y añade:
+
+NEXT_PUBLIC_SUPABASE_URL → tu URL de Supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY → tu clave anon de Supabase
