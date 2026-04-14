@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-+import type { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "Mi Proyecto",
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: {
-  children: React.Node;
+  children: ReactNode;
 }) {
   return (
     <html lang="es">
