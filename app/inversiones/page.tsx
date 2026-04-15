@@ -76,7 +76,7 @@ export default async function Inversiones() {
         <StatCard label="Bº No realizado"     value={stats.beneficioNoRealizado} colored />
         <StatCard label="Bº Realizado"         value={stats.beneficioRealizado}   colored />
         <StatCard label="Bº Total"             value={stats.beneficioTotal}       colored />
-        <StatCardPct label="CAGR" value={stats.cagr} colored subtitle="Rentabilidad anualizada" />
+        <StatCardPct label="CAGR" value={stats.cagr} />
         <StatCardPct
           label="Win Rate"
           value={stats.winRate}
