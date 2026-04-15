@@ -49,9 +49,10 @@ export default function PortfolioChart({ tickers, total }: Props) {
           ))}
         </Pie>
         <Tooltip
-          formatter={(value: number, name: string) => {
-            const item = data.find((d) => d.ticker === name);
-            return [`${fmt(value)} · ${item?.pct}%`, name];
+          formatter={(value, name) => {
+            const num = typeof value === "number" ? value : 0;
+            const item = data.find((d) => d.ticker === String(name));
+            return [`${fmt(num)} · ${item?.pct}%`, String(name)];
           }}
         />
         <Legend />
