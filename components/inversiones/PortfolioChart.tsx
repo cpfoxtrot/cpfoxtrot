@@ -1,26 +1,41 @@
 "use client";
 
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import type { TickerSummary } from "@/lib/data/portfolio";
-
-const COLORS = [
-  "#1a56db", "#057a55", "#f97316", "#7c3aed",
-  "#0891b2", "#db2777", "#ca8a04", "#4338ca",
-  "#dc2626", "#65a30d", "#0e9f6e", "#ff5a1f",
-];
-
 import { fmtEUR as fmt } from "@/lib/utils/format";
+
+// Tailwind 500-series — balanced, harmonious palette
+const COLORS = [
+  "#3B82F6", "#10B981", "#F59E0B", "#8B5CF6",
+  "#06B6D4", "#F43F5E", "#84CC16", "#EC4899",
+  "#14B8A6", "#F97316", "#6366F1", "#A78BFA",
+];
 
 interface Props {
   tickers: TickerSummary[];
   total: number;
+}
+
+const RADIAN = Math.PI / 180;
+
+function InnerLabel({
+  cx, cy, midAngle, innerRadius, outerRadius, name, pct,
+}: {
+  cx: number; cy: number; midAngle: number;
+  innerRadius: number; outerRadius: number;
+  name: string; pct: string;
+}) {
+  if (parseFloat(pct) < 6) return null;
+  const r = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + r * Math.cos(-midAngle * RADIAN);
+  const y = cy + r * Math.sin(-midAngle * RADIAN);
+  return (
+    <text x={x} y={y} textAnchor="middle" dominantBaseline="central"
+      style={{ pointerEvents: "none" }} fill="white">
+      <tspan x={x} dy="-0.4em" fontSize={11} fontWeight={700}>{name}</tspan>
+      <tspan x={x} dy="1.4em" fontSize={10} fontWeight={400}>{pct}%</tspan>
+    </text>
+  );
 }
 
 export default function PortfolioChart({ tickers, total }: Props) {
@@ -31,20 +46,32 @@ export default function PortfolioChart({ tickers, total }: Props) {
   }));
 
   return (
-    <ResponsiveContainer width="100%" height={340}>
+    <ResponsiveContainer width="100%" height={300}>
       <PieChart>
         <Pie
           data={data}
           cx="50%"
           cy="50%"
-          innerRadius={95}
-          outerRadius={140}
+          innerRadius={72}
+          outerRadius={128}
           paddingAngle={2}
           dataKey="value"
           nameKey="ticker"
+          labelLine={false}
+          label={(props) => (
+            <InnerLabel
+              cx={props.cx ?? 0}
+              cy={props.cy ?? 0}
+              midAngle={props.midAngle ?? 0}
+              innerRadius={props.innerRadius ?? 0}
+              outerRadius={props.outerRadius ?? 0}
+              name={String(props.name ?? "")}
+              pct={data[props.index]?.pct ?? "0"}
+            />
+          )}
         >
           {data.map((_, i) => (
-            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+            <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />
           ))}
         </Pie>
         <Tooltip
@@ -54,7 +81,6 @@ export default function PortfolioChart({ tickers, total }: Props) {
             return [`${fmt(num)} · ${item?.pct}%`, String(name)];
           }}
         />
-        <Legend />
       </PieChart>
     </ResponsiveContainer>
   );

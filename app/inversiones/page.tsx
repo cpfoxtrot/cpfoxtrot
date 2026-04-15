@@ -31,29 +31,19 @@ function StatCard({
   );
 }
 
-function StatCardPct({
+function StatCardRaw({
   label,
-  value,
-  subtitle,
+  display,
   colored = false,
 }: {
   label: string;
-  value: number | null;
-  subtitle?: string;
+  display: string;
   colored?: boolean;
 }) {
-  const cls = colored && value !== null ? (value >= 0 ? "stat-positive" : "stat-negative") : "";
   return (
     <div className="stat-card">
       <p className="stat-label">{label}</p>
-      <p className={`stat-value ${cls}`}>
-        {value === null ? "—" : `${value.toFixed(1)}%`}
-      </p>
-      {subtitle && (
-        <p className="stat-label" style={{ marginTop: "var(--space-1)" }}>
-          {subtitle}
-        </p>
-      )}
+      <p className={`stat-value${colored ? " stat-positive" : ""}`}>{display}</p>
     </div>
   );
 }
@@ -76,11 +66,14 @@ export default async function Inversiones() {
         <StatCard label="Bº No realizado"     value={stats.beneficioNoRealizado} colored />
         <StatCard label="Bº Realizado"         value={stats.beneficioRealizado}   colored />
         <StatCard label="Bº Total"             value={stats.beneficioTotal}       colored />
-        <StatCardPct label="CAGR" value={stats.cagr} />
-        <StatCardPct
+        <StatCardRaw
+          label="CAGR"
+          display={stats.cagr === null ? "—" : `${stats.cagr.toFixed(1)}%`}
+          colored={stats.cagr !== null && stats.cagr >= 0}
+        />
+        <StatCardRaw
           label="Win Rate"
-          value={stats.winRate}
-          subtitle={stats.totalCerradas > 0 ? `${stats.winCount} de ${stats.totalCerradas} ops.` : "Sin operaciones cerradas"}
+          display={stats.totalCerradas > 0 ? `${stats.winCount} / ${stats.totalCerradas}` : "—"}
         />
       </div>
 

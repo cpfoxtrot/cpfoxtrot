@@ -441,7 +441,7 @@ button {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-5) var(--space-6);
+  padding: var(--space-3) var(--space-4);
   box-shadow: var(--shadow-sm);
 }
 
@@ -453,7 +453,7 @@ button {
 }
 
 .stat-value {
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   font-weight: var(--font-bold);
   letter-spacing: -0.02em;
   color: var(--color-fg);

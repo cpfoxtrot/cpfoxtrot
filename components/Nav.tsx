@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { routes } from "@/lib/catalogs/routes";
 
 export default function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
 
   if (pathname === "/login") return null;
+
+  async function logout() {
+    await fetch("/api/auth", { method: "DELETE" });
+    router.push("/login");
+  }
 
   return (
     <nav className="nav">
@@ -27,6 +33,13 @@ export default function Nav() {
             </li>
           ))}
         </ul>
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={logout}
+          style={{ marginLeft: "auto" }}
+        >
+          Cerrar sesión
+        </button>
       </div>
     </nav>
   );
