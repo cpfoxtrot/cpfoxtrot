@@ -52,7 +52,7 @@ export default function PortfolioChart({ tickers, total }: Props) {
           data={data}
           cx="50%"
           cy="50%"
-          innerRadius={72}
+          innerRadius={36}
           outerRadius={128}
           paddingAngle={2}
           dataKey="value"
