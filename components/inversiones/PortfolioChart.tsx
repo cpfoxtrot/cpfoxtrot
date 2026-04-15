@@ -16,8 +16,7 @@ const COLORS = [
   "#dc2626", "#65a30d", "#0e9f6e", "#ff5a1f",
 ];
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(v);
+import { fmtEUR as fmt } from "@/lib/utils/format";
 
 interface Props {
   tickers: TickerSummary[];

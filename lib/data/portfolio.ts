@@ -18,9 +18,28 @@ export interface TickerSummary {
   rentabilidad: number;
 }
 
+export interface PosicionRow {
+  id: number;
+  ticker: string;
+  cantidad: number;
+  precio_compra: number;
+  fecha_compra: string | null;
+  com_compra: number;
+  tc_compra: number | null;
+  precio_venta: number | null;
+  fecha_venta: string | null;
+  com_venta: number | null;
+  dividendos: number;
+  incentivos: number;
+  impuesto: number;
+  estado: string;
+}
+
 export interface PortfolioData {
   stats: PortfolioStats;
   tickers: TickerSummary[];
+  posiciones: PosicionRow[];
+  openTickers: string[];
 }
 
 interface Posicion {
@@ -39,14 +58,17 @@ interface Posicion {
 const empty: PortfolioData = {
   stats: { valorCartera: 0, beneficioNoRealizado: 0, beneficioRealizado: 0, beneficioTotal: 0 },
   tickers: [],
+  posiciones: [],
+  openTickers: [],
 };
 
 export async function getPortfolioData(): Promise<PortfolioData> {
   const { data: posiciones, error } = await supabase
     .from("posiciones")
     .select(
-      "ticker, cantidad, precio_compra, precio_venta, com_compra, com_venta, dividendos, incentivos, impuesto, estado"
-    );
+      "id, ticker, cantidad, precio_compra, precio_venta, fecha_compra, fecha_venta, com_compra, com_venta, tc_compra, dividendos, incentivos, impuesto, estado"
+    )
+    .order("id", { ascending: true });
 
   if (error) {
     console.error("[portfolio] Error al leer posiciones:", error.message);
@@ -150,5 +172,7 @@ export async function getPortfolioData(): Promise<PortfolioData> {
       beneficioTotal: beneficioRealizado + beneficioNoRealizado,
     },
     tickers,
+    posiciones: posiciones as PosicionRow[],
+    openTickers: tickersAbiertos,
   };
 }

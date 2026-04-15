@@ -1,11 +1,7 @@
 import type { TickerSummary } from "@/lib/data/portfolio";
+import { fmtEUR } from "@/lib/utils/format";
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-  }).format(v);
+const fmt = fmtEUR;
 
 const color = (v: number) =>
   v > 0 ? "stat-positive" : v < 0 ? "stat-negative" : "";
