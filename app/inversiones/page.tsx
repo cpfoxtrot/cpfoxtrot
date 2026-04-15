@@ -1,5 +1,7 @@
 import { getPortfolioStats } from "@/lib/data/portfolio";
 
+export const dynamic = "force-dynamic";
+
 function formatEUR(value: number) {
   return new Intl.NumberFormat("es-ES", {
     style: "currency",
