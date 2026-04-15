@@ -1,15 +1,15 @@
-import { getPortfolioStats } from "@/lib/data/portfolio";
+import { getPortfolioData } from "@/lib/data/portfolio";
+import PortfolioChart from "@/components/inversiones/PortfolioChart";
+import TickerTable from "@/components/inversiones/TickerTable";
 
 export const dynamic = "force-dynamic";
 
-function formatEUR(value: number) {
-  return new Intl.NumberFormat("es-ES", {
+const fmt = (v: number) =>
+  new Intl.NumberFormat("es-ES", {
     style: "currency",
     currency: "EUR",
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
+  }).format(v);
 
 interface StatCardProps {
   label: string;
@@ -18,42 +18,49 @@ interface StatCardProps {
 }
 
 function StatCard({ label, value, colored = false }: StatCardProps) {
-  const colorClass = colored
-    ? value >= 0
-      ? "stat-positive"
-      : "stat-negative"
-    : "";
-
+  const cls = colored ? (value >= 0 ? "stat-positive" : "stat-negative") : "";
   return (
     <div className="stat-card">
       <p className="stat-label">{label}</p>
-      <p className={`stat-value ${colorClass}`}>{formatEUR(value)}</p>
+      <p className={`stat-value ${cls}`}>{fmt(value)}</p>
     </div>
   );
 }
 
 export default async function Inversiones() {
-  const stats = await getPortfolioStats();
+  const { stats, tickers } = await getPortfolioData();
 
   return (
     <div className="page">
-      {/* ── Resumen de cartera ── */}
+      {/* ── Métricas globales ── */}
       <div className="stats-grid">
         <StatCard label="Valor de la cartera" value={stats.valorCartera} />
         <StatCard label="Bº No realizado" value={stats.beneficioNoRealizado} colored />
-        <StatCard label="Bº Realizado" value={stats.beneficioRealizado} colored />
-        <StatCard label="Bº Total" value={stats.beneficioTotal} colored />
+        <StatCard label="Bº Realizado"     value={stats.beneficioRealizado} colored />
+        <StatCard label="Bº Total"         value={stats.beneficioTotal}     colored />
       </div>
 
-      {/* ── Secciones futuras ── */}
-      <div className="page-header">
-        <h1>Inversiones</h1>
-        <p>Gestión y seguimiento de tu cartera</p>
-      </div>
+      {tickers.length === 0 ? (
+        <div className="empty-state">
+          <p>No hay posiciones abiertas o no se pudieron cargar los datos.</p>
+        </div>
+      ) : (
+        <>
+          {/* ── Distribución de la cartera ── */}
+          <section className="inv-section">
+            <h2 className="inv-section-title">Distribución de la cartera</h2>
+            <div className="chart-wrap">
+              <PortfolioChart tickers={tickers} total={stats.valorCartera} />
+            </div>
+          </section>
 
-      <div className="empty-state">
-        <p>Las posiciones aparecerán aquí una vez conectada la base de datos.</p>
-      </div>
+          {/* ── Tabla por ticker ── */}
+          <section className="inv-section">
+            <h2 className="inv-section-title">Posiciones abiertas por ticker</h2>
+            <TickerTable data={tickers} />
+          </section>
+        </>
+      )}
     </div>
   );
 }
