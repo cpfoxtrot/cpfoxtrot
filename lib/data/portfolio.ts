@@ -59,6 +59,14 @@ interface Posicion {
   estado: string;
 }
 
+/** "DD-MM-YY" → YYYYMMDD integer, safe for chronological comparison */
+function ddmmyyToNum(s: string | null): number {
+  if (!s) return 0;
+  const [d, m, yy] = s.split("-");
+  if (!d || !m || !yy) return 0;
+  return parseInt(`20${yy}${m.padStart(2, "0")}${d.padStart(2, "0")}`);
+}
+
 function storedToDate(s: string | null): Date | null {
   if (!s) return null;
   const parts = s.split("-");
@@ -94,20 +102,25 @@ export async function getPortfolioData(): Promise<PortfolioData> {
   // Precio más reciente por ticker (solo tickers con posición abierta)
   const tickersAbiertos = [...new Set(posAbiertas.map((p: Posicion) => p.ticker))] as string[];
 
+  // Fetch all prices for open tickers in one query, then pick the latest in JS.
+  // NOTE: dates are stored as "DD-MM-YY" which does NOT sort correctly as a string
+  // (e.g. "20-03-26" > "15-04-26" alphabetically but March < April chronologically).
   const preciosMap: Record<string, number> = {};
-  await Promise.all(
-    tickersAbiertos.map(async (ticker) => {
-      const { data, error: e } = await supabase
-        .from("precios")
-        .select("precio")
-        .eq("ticker", ticker)
-        .order("fecha", { ascending: false })
-        .limit(1)
-        .single();
-      if (e) console.error(`[portfolio] Sin precio para ${ticker}:`, e.message);
-      preciosMap[ticker] = data?.precio ?? 0;
-    })
-  );
+  if (tickersAbiertos.length > 0) {
+    const { data: allPrices } = await supabase
+      .from("precios")
+      .select("ticker, fecha, precio")
+      .in("ticker", tickersAbiertos);
+
+    const latestDateNum: Record<string, number> = {};
+    (allPrices ?? []).forEach((row: { ticker: string; fecha: string; precio: number }) => {
+      const n = ddmmyyToNum(row.fecha);
+      if (!latestDateNum[row.ticker] || n > latestDateNum[row.ticker]) {
+        latestDateNum[row.ticker] = n;
+        preciosMap[row.ticker] = row.precio;
+      }
+    });
+  }
 
   // Resumen por ticker
   const tickers: TickerSummary[] = tickersAbiertos

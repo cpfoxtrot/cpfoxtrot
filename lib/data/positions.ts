@@ -46,22 +46,26 @@ export async function getAllPositionsData(): Promise<PositionDetail[]> {
   );
   const tickersAbiertos = [...new Set(abiertas.map((p: PosicionRow) => p.ticker))] as string[];
 
-  // Fetch latest price for each open ticker + USD/EUR rate
+  // Fetch latest price for each open ticker + USD/EUR rate.
+  // Dates are "DD-MM-YY" so string ordering is wrong — pick max in JS.
   const preciosMap: Record<string, number> = {};
   const allTickers = [...tickersAbiertos, "USD/EUR"];
 
-  await Promise.all(
-    allTickers.map(async (ticker) => {
-      const { data } = await supabaseAdmin
-        .from("precios")
-        .select("precio")
-        .eq("ticker", ticker)
-        .order("fecha", { ascending: false })
-        .limit(1)
-        .single();
-      if (data) preciosMap[ticker] = data.precio;
-    })
-  );
+  if (allTickers.length > 0) {
+    const { data: allPrices } = await supabaseAdmin
+      .from("precios")
+      .select("ticker, fecha, precio")
+      .in("ticker", allTickers);
+
+    const latestDateNum: Record<string, number> = {};
+    (allPrices ?? []).forEach((row: { ticker: string; fecha: string; precio: number }) => {
+      const n = ddmmyyToNum(row.fecha);
+      if (!latestDateNum[row.ticker] || n > latestDateNum[row.ticker]) {
+        latestDateNum[row.ticker] = n;
+        preciosMap[row.ticker] = row.precio;
+      }
+    });
+  }
 
   const tcActual = preciosMap["USD/EUR"] ?? 1;
 
