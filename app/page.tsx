@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { routes } from "@/lib/catalogs/routes";
+import TodoWidget from "@/components/TodoWidget";
 
 export default function Home() {
   const sections = routes.filter((r) => r.path !== "/");
@@ -29,6 +30,8 @@ export default function Home() {
           </Link>
         ))}
       </div>
+
+      <TodoWidget />
     </div>
   );
 }

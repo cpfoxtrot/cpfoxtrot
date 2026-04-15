@@ -91,3 +91,58 @@ export async function addDividend(data: {
   if (error) throw new Error(error.message);
   revalidatePath("/inversiones");
 }
+
+/** Convert "DD-MM-YY" to YYYYMMDD int for comparison */
+function ddmmyyToNum(s: string | null): number {
+  if (!s) return 0;
+  const [d, m, yy] = s.split("-");
+  if (!d || !m || !yy) return 0;
+  return parseInt(`20${yy}${m.padStart(2, "0")}${d.padStart(2, "0")}`);
+}
+
+export async function reconcileDividend(
+  ticker: string,
+  fecha: string,
+  importe: number
+): Promise<{ updated: number }> {
+  const { data: positions, error } = await supabaseAdmin
+    .from("posiciones")
+    .select("id, cantidad, fecha_compra, fecha_venta, estado, dividendos")
+    .eq("ticker", ticker);
+
+  if (error) throw new Error(error.message);
+  if (!positions || positions.length === 0) return { updated: 0 };
+
+  const fechaNum = ddmmyyToNum(fecha);
+
+  const openOnDate = positions.filter((p: {
+    fecha_compra: string | null;
+    fecha_venta: string | null;
+    estado: string;
+  }) => {
+    const compraNum = ddmmyyToNum(p.fecha_compra);
+    if (!compraNum || compraNum > fechaNum) return false;
+    if (p.estado?.toUpperCase() === "ABIERTA") return true;
+    return ddmmyyToNum(p.fecha_venta) >= fechaNum;
+  });
+
+  const totalCantidad: number = openOnDate.reduce(
+    (s: number, p: { cantidad: number }) => s + p.cantidad,
+    0
+  );
+  if (totalCantidad === 0) return { updated: 0 };
+
+  await Promise.all(
+    openOnDate.map((p: { id: number; cantidad: number; dividendos: number }) => {
+      const share = (p.cantidad / totalCantidad) * importe;
+      return supabaseAdmin
+        .from("posiciones")
+        .update({ dividendos: (p.dividendos ?? 0) + share })
+        .eq("id", p.id);
+    })
+  );
+
+  revalidatePath("/inversiones");
+  revalidatePath("/inversiones/posiciones");
+  return { updated: openOnDate.length };
+}

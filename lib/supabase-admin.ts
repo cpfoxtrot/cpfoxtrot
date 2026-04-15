@@ -1,13 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Usa SUPABASE_SERVICE_ROLE_KEY si está definida (bypasa RLS).
-// Si no está, cae al anon key — funciona mientras RLS esté desactivado en las tablas.
-// Supabase → Settings → API → "service_role" (pulsa Reveal para verla).
+// Falls back to placeholder values at build time (no env vars available then).
+// At runtime on Vercel, the real env vars are always present.
 const key =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+  "placeholder-key";
 
 export const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co",
   key
 );

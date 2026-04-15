@@ -5,6 +5,10 @@ export interface PortfolioStats {
   beneficioNoRealizado: number;
   beneficioRealizado: number;
   beneficioTotal: number;
+  cagr: number | null;
+  winRate: number | null;
+  winCount: number;
+  totalCerradas: number;
 }
 
 export interface TickerSummary {
@@ -55,8 +59,16 @@ interface Posicion {
   estado: string;
 }
 
+function storedToDate(s: string | null): Date | null {
+  if (!s) return null;
+  const parts = s.split("-");
+  if (parts.length !== 3) return null;
+  const [d, m, yy] = parts;
+  return new Date(`20${yy}-${m}-${d}`);
+}
+
 const empty: PortfolioData = {
-  stats: { valorCartera: 0, beneficioNoRealizado: 0, beneficioRealizado: 0, beneficioTotal: 0 },
+  stats: { valorCartera: 0, beneficioNoRealizado: 0, beneficioRealizado: 0, beneficioTotal: 0, cagr: null, winRate: null, winCount: 0, totalCerradas: 0 },
   tickers: [],
   posiciones: [],
   openTickers: [],
@@ -164,12 +176,43 @@ export async function getPortfolioData(): Promise<PortfolioData> {
     0
   );
 
+  // CAGR (annualised return on open positions)
+  const allDates = (posiciones as PosicionRow[])
+    .map((p) => storedToDate(p.fecha_compra))
+    .filter((d): d is Date => d !== null);
+  const earliest = allDates.length > 0 ? new Date(Math.min(...allDates.map((d) => d.getTime()))) : null;
+  const today = new Date();
+  const years = earliest ? (today.getTime() - earliest.getTime()) / (365.25 * 24 * 3600 * 1000) : 0;
+  const totalCosteAbiertas = posAbiertas.reduce((s: number, p: Posicion) => s + p.precio_compra * p.cantidad, 0);
+  const cagr: number | null =
+    years >= 0.1 && totalCosteAbiertas > 0 && valorCartera > 0
+      ? (Math.pow(valorCartera / totalCosteAbiertas, 1 / years) - 1) * 100
+      : null;
+
+  // Win/Loss rate (closed positions)
+  const totalCerradas = posCerradas.length;
+  const winCount = posCerradas.filter((p: Posicion) => {
+    const pl =
+      ((p.precio_venta ?? 0) - p.precio_compra) * p.cantidad -
+      (p.com_compra ?? 0) -
+      (p.com_venta ?? 0) +
+      (p.dividendos ?? 0) +
+      (p.incentivos ?? 0) -
+      (p.impuesto ?? 0);
+    return pl > 0;
+  }).length;
+  const winRate: number | null = totalCerradas > 0 ? (winCount / totalCerradas) * 100 : null;
+
   return {
     stats: {
       valorCartera,
       beneficioNoRealizado,
       beneficioRealizado,
       beneficioTotal: beneficioRealizado + beneficioNoRealizado,
+      cagr,
+      winRate,
+      winCount,
+      totalCerradas,
     },
     tickers,
     posiciones: posiciones as PosicionRow[],
