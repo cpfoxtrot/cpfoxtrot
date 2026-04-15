@@ -41,8 +41,11 @@ export async function getPortfolioStats(): Promise<PortfolioStats> {
 
   console.log(`[portfolio] ${posiciones.length} posiciones cargadas`);
 
-  const posAbiertas = posiciones.filter((p: Posicion) => p.estado === "Abierta");
-  const posCerradas = posiciones.filter((p: Posicion) => p.estado === "Cerrada");
+  const estadosUnicos = [...new Set(posiciones.map((p: Posicion) => p.estado))];
+  console.log(`[portfolio] Valores de estado encontrados:`, estadosUnicos);
+
+  const posAbiertas = posiciones.filter((p: Posicion) => p.estado?.toLowerCase() === "abierta");
+  const posCerradas = posiciones.filter((p: Posicion) => p.estado?.toLowerCase() === "cerrada");
 
   console.log(`[portfolio] Abiertas: ${posAbiertas.length} | Cerradas: ${posCerradas.length}`);
 
