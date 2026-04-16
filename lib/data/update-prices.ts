@@ -21,6 +21,12 @@ export interface PriceUpdateResult {
 
 export async function runPriceUpdate(): Promise<PriceUpdateResult> {
   const today = toStoredDate(new Date().toISOString().split("T")[0]);
+  const hora = new Date().toLocaleTimeString("es-ES", {
+    timeZone: "Europe/Madrid",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 
   // 1. USD/EUR rate
   const fx = await yf.quote("USDEUR=X");
@@ -65,7 +71,7 @@ export async function runPriceUpdate(): Promise<PriceUpdateResult> {
     })
   );
 
-  // 4. Batch upsert to Supabase
+  // 4. Batch upsert — try with hora column, fallback without (in case column not yet added)
   const rows = [
     { ticker: "USD/EUR", fecha: today, precio: +usdEurRate.toFixed(6) },
     ...fetched
@@ -73,9 +79,16 @@ export async function runPriceUpdate(): Promise<PriceUpdateResult> {
       .map((r) => ({ ticker: r.ticker, fecha: today, precio: r.priceEur })),
   ];
 
-  const { error: upsertError } = await supabaseAdmin
+  let { error: upsertError } = await supabaseAdmin
     .from("precios")
-    .upsert(rows, { onConflict: "ticker,fecha" });
+    .upsert(rows.map((r) => ({ ...r, hora })), { onConflict: "ticker,fecha" });
+
+  if (upsertError?.message?.includes("column")) {
+    // hora column not yet added — retry without it
+    ({ error: upsertError } = await supabaseAdmin
+      .from("precios")
+      .upsert(rows, { onConflict: "ticker,fecha" }));
+  }
   if (upsertError) throw new Error(upsertError.message);
 
   const log: PriceUpdateLog[] = [
@@ -90,10 +103,20 @@ export async function runPriceUpdate(): Promise<PriceUpdateResult> {
   return { date: today, usdEurRate, summary: { ok, skip, error }, log };
 }
 
-/** Returns the most recent fecha stored in the precios table (DD-MM-YY), or null */
-export async function getLastPriceDate(): Promise<string | null> {
-  const { data } = await supabaseAdmin.from("precios").select("fecha");
-  if (!data || data.length === 0) return null;
+/** Returns the most recent price update date + hour from the precios table */
+export async function getLastPriceUpdate(): Promise<{ fecha: string | null; hora: string | null }> {
+  // Try with hora column first; gracefully handle if it doesn't exist yet
+  const { data, error } = await supabaseAdmin.from("precios").select("fecha, hora");
+
+  let rows: Array<{ fecha: string; hora?: string | null }>;
+  if (error) {
+    const { data: fallback } = await supabaseAdmin.from("precios").select("fecha");
+    rows = fallback ?? [];
+  } else {
+    rows = data ?? [];
+  }
+
+  if (rows.length === 0) return { fecha: null, hora: null };
 
   const toNum = (s: string) => {
     const [d, m, yy] = s.split("-");
@@ -101,10 +124,16 @@ export async function getLastPriceDate(): Promise<string | null> {
     return parseInt(`20${yy}${m.padStart(2, "0")}${d.padStart(2, "0")}`);
   };
 
-  return data.reduce(
-    (max: string, row: { fecha: string }) => (toNum(row.fecha) > toNum(max) ? row.fecha : max),
-    data[0].fecha
-  );
+  let maxNum = 0;
+  let result: { fecha: string | null; hora: string | null } = { fecha: null, hora: null };
+  for (const row of rows) {
+    const n = toNum(row.fecha);
+    if (n > maxNum) {
+      maxNum = n;
+      result = { fecha: row.fecha, hora: (row as { hora?: string | null }).hora ?? null };
+    }
+  }
+  return result;
 }
 
 /** Business days (Mon–Fri) elapsed since the given DD-MM-YY date */

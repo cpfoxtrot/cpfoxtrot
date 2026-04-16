@@ -480,6 +480,44 @@ button {
 }
 
 /* ─────────────────────────────────────────
+   Actions dropdown
+───────────────────────────────────────── */
+.actions-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.actions-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  min-width: 190px;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.actions-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: var(--space-2) var(--space-4);
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  color: var(--color-fg);
+}
+
+.actions-dropdown-item:hover {
+  background: var(--color-surface);
+}
+
+/* ─────────────────────────────────────────
    Price status bar
 ───────────────────────────────────────── */
 .price-status-bar {
