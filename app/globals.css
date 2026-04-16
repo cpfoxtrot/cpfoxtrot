@@ -480,6 +480,43 @@ button {
 }
 
 /* ─────────────────────────────────────────
+   Price status bar
+───────────────────────────────────────── */
+.price-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-6);
+}
+
+.price-status-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.price-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.price-dot-ok   { background: #10B981; }
+.price-dot-stale { background: #F59E0B; }
+
+.price-status-text { color: var(--color-muted); }
+.price-status-ok   { color: #10B981; }
+.price-status-err  { color: #F43F5E; }
+
+/* ─────────────────────────────────────────
    Secciones internas (Inversiones, etc.)
 ───────────────────────────────────────── */
 .inv-section {

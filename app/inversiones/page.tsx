@@ -3,6 +3,7 @@ import { getPortfolioData } from "@/lib/data/portfolio";
 import { calcPLByYear, calcFlujoCaja } from "@/lib/data/analytics";
 import type { DividendRow } from "@/lib/data/analytics";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getLastPriceDate, businessDaysSince } from "@/lib/data/update-prices";
 import { fmtEUR } from "@/lib/utils/format";
 import PortfolioChart from "@/components/inversiones/PortfolioChart";
 import TickerTable from "@/components/inversiones/TickerTable";
@@ -10,6 +11,7 @@ import ActionBar from "@/components/inversiones/ActionBar";
 import TabsContainer from "@/components/inversiones/TabsContainer";
 import PLByYear from "@/components/inversiones/PLByYear";
 import FlujoCaja from "@/components/inversiones/FlujoCaja";
+import RefreshPricesButton from "@/components/inversiones/RefreshPricesButton";
 
 export const dynamic = "force-dynamic";
 
@@ -49,10 +51,13 @@ function StatCardRaw({
 }
 
 export default async function Inversiones() {
-  const [{ stats, tickers, posiciones, openTickers }, divResult] = await Promise.all([
+  const [{ stats, tickers, posiciones, openTickers }, divResult, lastUpdate] = await Promise.all([
     getPortfolioData(),
     supabaseAdmin.from("dividendos").select("ticker, fecha, importe"),
+    getLastPriceDate(),
   ]);
+
+  const pricesStale = lastUpdate ? businessDaysSince(lastUpdate) > 1 : true;
 
   const dividendos: DividendRow[] = (divResult.data ?? []) as DividendRow[];
   const plByYear = calcPLByYear(posiciones);
@@ -60,6 +65,9 @@ export default async function Inversiones() {
 
   return (
     <div className="page">
+      {/* ── Estado de precios ── */}
+      <RefreshPricesButton lastUpdate={lastUpdate} stale={pricesStale} />
+
       {/* ── Métricas globales ── */}
       <div className="stats-grid">
         <StatCard label="Valor de la cartera" value={stats.valorCartera} />

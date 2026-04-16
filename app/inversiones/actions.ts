@@ -2,6 +2,13 @@
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
+import { runPriceUpdate, type PriceUpdateResult } from "@/lib/data/update-prices";
+
+export async function refreshPrices(): Promise<PriceUpdateResult> {
+  const result = await runPriceUpdate();
+  revalidatePath("/inversiones");
+  return result;
+}
 
 // ── Posiciones ────────────────────────────────────────────────────────────────
 
