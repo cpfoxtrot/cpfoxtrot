@@ -63,9 +63,9 @@ export default async function Inversiones() {
       {/* ── Métricas globales ── */}
       <div className="stats-grid">
         <StatCard label="Valor de la cartera" value={stats.valorCartera} />
+        <StatCard label="Bº Total"             value={stats.beneficioTotal}       colored />
         <StatCard label="Bº No realizado"     value={stats.beneficioNoRealizado} colored />
         <StatCard label="Bº Realizado"         value={stats.beneficioRealizado}   colored />
-        <StatCard label="Bº Total"             value={stats.beneficioTotal}       colored />
         <StatCardRaw
           label="CAGR"
           display={stats.cagr === null ? "—" : `${stats.cagr.toFixed(1)}%`}
@@ -127,6 +127,15 @@ export default async function Inversiones() {
               id: "desglose",
               label: "Desglose P/L",
               content: <DesglosePL data={desglosePL} />,
+            },
+            {
+              id: "heatmap",
+              label: "Heatmap",
+              content: (
+                <div className="empty-state">
+                  <p>Vista en construcción — próximamente.</p>
+                </div>
+              ),
             },
           ]}
         />

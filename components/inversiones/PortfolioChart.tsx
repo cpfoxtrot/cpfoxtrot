@@ -4,11 +4,11 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import type { TickerSummary } from "@/lib/data/portfolio";
 import { fmtEUR as fmt } from "@/lib/utils/format";
 
-// Tailwind 500-series — balanced, harmonious palette
+// Muted professional palette — distinguishable but not garish
 const COLORS = [
-  "#3B82F6", "#10B981", "#F59E0B", "#8B5CF6",
-  "#06B6D4", "#F43F5E", "#84CC16", "#EC4899",
-  "#14B8A6", "#F97316", "#6366F1", "#A78BFA",
+  "#3B5BDB", "#0CA678", "#F08C00", "#7048E8",
+  "#1098AD", "#C2255C", "#5C940D", "#E67700",
+  "#2B8A3E", "#1971C2", "#6741D9", "#D9480F",
 ];
 
 interface Props {

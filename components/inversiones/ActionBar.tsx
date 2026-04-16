@@ -48,7 +48,7 @@ export default function ActionBar({ posiciones, openTickers }: Props) {
     <>
       <div className="actions-menu" ref={menuRef}>
         <button
-          className="btn btn-secondary btn-sm"
+          className="btn btn-primary btn-sm"
           onClick={() => setOpen((v) => !v)}
         >
           Acciones ▾
