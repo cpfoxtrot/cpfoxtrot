@@ -2,9 +2,11 @@
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
-import { runPriceUpdate, type PriceUpdateResult } from "@/lib/data/update-prices";
+import type { PriceUpdateResult } from "@/lib/data/update-prices";
 
 export async function refreshPrices(): Promise<PriceUpdateResult> {
+  // Dynamic import keeps yahoo-finance2 out of the module graph at render time
+  const { runPriceUpdate } = await import("@/lib/data/update-prices");
   const result = await runPriceUpdate();
   revalidatePath("/inversiones");
   return result;
@@ -89,17 +91,6 @@ export async function upsertPrices(
 
 // ── Dividendos ────────────────────────────────────────────────────────────────
 
-export async function addDividend(data: {
-  ticker: string;
-  fecha: string;
-  importe: number;
-}) {
-  const { error } = await supabaseAdmin.from("dividendos").insert(data);
-  if (error) throw new Error(error.message);
-  revalidatePath("/inversiones");
-}
-
-/** Convert "DD-MM-YY" to YYYYMMDD int for comparison */
 function ddmmyyToNum(s: string | null): number {
   if (!s) return 0;
   const [d, m, yy] = s.split("-");
@@ -107,49 +98,57 @@ function ddmmyyToNum(s: string | null): number {
   return parseInt(`20${yy}${m.padStart(2, "0")}${d.padStart(2, "0")}`);
 }
 
-export async function reconcileDividend(
-  ticker: string,
-  fecha: string,
-  importe: number
-): Promise<{ updated: number }> {
-  const { data: positions, error } = await supabaseAdmin
+export async function addAndDistributeDividend(data: {
+  ticker: string;
+  fecha: string;   // DD-MM-YY
+  importe: number;
+}): Promise<{ distributed: number }> {
+  const { ticker, fecha, importe } = data;
+
+  // 1. Insert into dividendos table
+  const { error: insertError } = await supabaseAdmin
+    .from("dividendos")
+    .insert({ ticker, fecha, importe });
+  if (insertError) throw new Error(`Error al guardar dividendo: ${insertError.message}`);
+
+  // 2. Fetch all positions for this ticker
+  const { data: positions, error: fetchError } = await supabaseAdmin
     .from("posiciones")
     .select("id, cantidad, fecha_compra, fecha_venta, estado, dividendos")
     .eq("ticker", ticker);
+  if (fetchError) throw new Error(`Error al leer posiciones: ${fetchError.message}`);
+  if (!positions || positions.length === 0) {
+    revalidatePath("/inversiones");
+    return { distributed: 0 };
+  }
 
-  if (error) throw new Error(error.message);
-  if (!positions || positions.length === 0) return { updated: 0 };
-
+  // 3. Find positions that were open on the dividend date
   const fechaNum = ddmmyyToNum(fecha);
+  type Pos = { id: number; cantidad: number; fecha_compra: string | null; fecha_venta: string | null; estado: string; dividendos: number };
 
-  const openOnDate = positions.filter((p: {
-    fecha_compra: string | null;
-    fecha_venta: string | null;
-    estado: string;
-  }) => {
+  const openOnDate = (positions as Pos[]).filter((p) => {
     const compraNum = ddmmyyToNum(p.fecha_compra);
     if (!compraNum || compraNum > fechaNum) return false;
     if (p.estado?.toUpperCase() === "ABIERTA") return true;
+    // Closed but wasn't yet sold on the dividend date
     return ddmmyyToNum(p.fecha_venta) >= fechaNum;
   });
 
-  const totalCantidad: number = openOnDate.reduce(
-    (s: number, p: { cantidad: number }) => s + p.cantidad,
-    0
-  );
-  if (totalCantidad === 0) return { updated: 0 };
-
-  await Promise.all(
-    openOnDate.map((p: { id: number; cantidad: number; dividendos: number }) => {
-      const share = (p.cantidad / totalCantidad) * importe;
-      return supabaseAdmin
-        .from("posiciones")
-        .update({ dividendos: (p.dividendos ?? 0) + share })
-        .eq("id", p.id);
-    })
-  );
+  // 4. Distribute proportionally by cantidad
+  const totalCantidad = openOnDate.reduce((s, p) => s + p.cantidad, 0);
+  if (totalCantidad > 0) {
+    await Promise.all(
+      openOnDate.map((p) => {
+        const share = (p.cantidad / totalCantidad) * importe;
+        return supabaseAdmin
+          .from("posiciones")
+          .update({ dividendos: (p.dividendos ?? 0) + share })
+          .eq("id", p.id);
+      })
+    );
+  }
 
   revalidatePath("/inversiones");
   revalidatePath("/inversiones/posiciones");
-  return { updated: openOnDate.length };
+  return { distributed: openOnDate.length };
 }

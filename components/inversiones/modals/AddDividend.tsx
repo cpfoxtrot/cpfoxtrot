@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal, { FormField } from "../Modal";
-import { addDividend, reconcileDividend } from "@/app/inversiones/actions";
+import { addAndDistributeDividend } from "@/app/inversiones/actions";
 import { todayISO, toStoredDate } from "@/lib/utils/format";
 
 export default function AddDividend({
@@ -18,7 +18,7 @@ export default function AddDividend({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function handleAction(withReconcile: boolean) {
+  async function handleSubmit() {
     const form = formRef.current;
     if (!form || !form.reportValidity()) return;
     setLoading(true);
@@ -28,15 +28,7 @@ export default function AddDividend({
     const fecha = toStoredDate(fd.get("fecha") as string);
     const importe = parseFloat(fd.get("importe") as string);
     try {
-      await addDividend({ ticker, fecha, importe });
-      if (withReconcile) {
-        const result = await reconcileDividend(ticker, fecha, importe);
-        if (result.updated === 0) {
-          setError("Dividendo guardado, pero sin posiciones abiertas en esa fecha.");
-          setLoading(false);
-          return;
-        }
-      }
+      await addAndDistributeDividend({ ticker, fecha, importe });
       router.refresh();
       onClose();
     } catch (err: unknown) {
@@ -73,17 +65,9 @@ export default function AddDividend({
           </button>
           <button
             type="button"
-            className="btn btn-secondary"
-            disabled={loading}
-            onClick={() => handleAction(true)}
-          >
-            {loading ? "Guardando…" : "Añadir y distribuir"}
-          </button>
-          <button
-            type="button"
             className="btn btn-primary"
             disabled={loading}
-            onClick={() => handleAction(false)}
+            onClick={handleSubmit}
           >
             {loading ? "Guardando…" : "Añadir"}
           </button>
