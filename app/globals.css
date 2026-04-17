@@ -441,7 +441,7 @@ button {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-5) var(--space-6);
+  padding: var(--space-3) var(--space-4);
   box-shadow: var(--shadow-sm);
 }
 
@@ -453,7 +453,7 @@ button {
 }
 
 .stat-value {
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   font-weight: var(--font-bold);
   letter-spacing: -0.02em;
   color: var(--color-fg);
@@ -478,6 +478,81 @@ button {
   color: var(--color-muted);
   font-size: var(--text-sm);
 }
+
+/* ─────────────────────────────────────────
+   Actions dropdown
+───────────────────────────────────────── */
+.actions-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.actions-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  min-width: 190px;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.actions-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: var(--space-2) var(--space-4);
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  color: var(--color-fg);
+}
+
+.actions-dropdown-item:hover {
+  background: var(--color-surface);
+}
+
+/* ─────────────────────────────────────────
+   Price status bar
+───────────────────────────────────────── */
+.price-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-6);
+}
+
+.price-status-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.price-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.price-dot-ok   { background: #10B981; }
+.price-dot-stale { background: #F59E0B; }
+
+.price-status-text { color: var(--color-muted); }
+.price-status-ok   { color: #10B981; }
+.price-status-err  { color: #F43F5E; }
 
 /* ─────────────────────────────────────────
    Secciones internas (Inversiones, etc.)
@@ -574,7 +649,7 @@ button {
 
 .data-table th {
   text-align: right;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-1) var(--space-3);
   font-size: var(--text-xs);
   font-weight: var(--font-semibold);
   text-transform: uppercase;
@@ -586,7 +661,7 @@ button {
 
 .data-table td {
   text-align: right;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-1) var(--space-3);
   border-bottom: 1px solid var(--color-border);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

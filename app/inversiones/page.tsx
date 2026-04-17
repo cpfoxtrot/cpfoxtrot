@@ -3,6 +3,7 @@ import { getPortfolioData } from "@/lib/data/portfolio";
 import { calcPLByYear, calcFlujoCaja } from "@/lib/data/analytics";
 import type { DividendRow } from "@/lib/data/analytics";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getLastPriceUpdate, businessDaysSince } from "@/lib/data/price-status";
 import { fmtEUR } from "@/lib/utils/format";
 import PortfolioChart from "@/components/inversiones/PortfolioChart";
 import TickerTable from "@/components/inversiones/TickerTable";
@@ -10,18 +11,12 @@ import ActionBar from "@/components/inversiones/ActionBar";
 import TabsContainer from "@/components/inversiones/TabsContainer";
 import PLByYear from "@/components/inversiones/PLByYear";
 import FlujoCaja from "@/components/inversiones/FlujoCaja";
+import DesglosePL from "@/components/inversiones/DesglosePL";
+import RefreshPricesButton from "@/components/inversiones/RefreshPricesButton";
 
 export const dynamic = "force-dynamic";
 
-function StatCard({
-  label,
-  value,
-  colored = false,
-}: {
-  label: string;
-  value: number;
-  colored?: boolean;
-}) {
+function StatCard({ label, value, colored = false }: { label: string; value: number; colored?: boolean }) {
   const cls = colored ? (value >= 0 ? "stat-positive" : "stat-negative") : "";
   return (
     <div className="stat-card">
@@ -31,69 +26,67 @@ function StatCard({
   );
 }
 
-function StatCardPct({
-  label,
-  value,
-  subtitle,
-  colored = false,
-}: {
-  label: string;
-  value: number | null;
-  subtitle?: string;
-  colored?: boolean;
-}) {
-  const cls = colored && value !== null ? (value >= 0 ? "stat-positive" : "stat-negative") : "";
+function StatCardRaw({ label, display, colored = false }: { label: string; display: string; colored?: boolean }) {
   return (
     <div className="stat-card">
       <p className="stat-label">{label}</p>
-      <p className={`stat-value ${cls}`}>
-        {value === null ? "—" : `${value.toFixed(1)}%`}
-      </p>
-      {subtitle && (
-        <p className="stat-label" style={{ marginTop: "var(--space-1)" }}>
-          {subtitle}
-        </p>
-      )}
+      <p className={`stat-value${colored ? " stat-positive" : ""}`}>{display}</p>
     </div>
   );
 }
 
 export default async function Inversiones() {
-  const [{ stats, tickers, posiciones, openTickers }, divResult] = await Promise.all([
-    getPortfolioData(),
-    supabaseAdmin.from("dividendos").select("ticker, fecha, importe"),
-  ]);
+  const [{ stats, tickers, tickersAll, desglosePL, posiciones, openTickers }, divResult, lastPriceUpdate] =
+    await Promise.all([
+      getPortfolioData(),
+      supabaseAdmin.from("dividendos").select("ticker, fecha, importe"),
+      getLastPriceUpdate(),
+    ]);
 
   const dividendos: DividendRow[] = (divResult.data ?? []) as DividendRow[];
-  const plByYear = calcPLByYear(posiciones);
+  const plByYear  = calcPLByYear(posiciones);
   const flujoCaja = calcFlujoCaja(posiciones, dividendos);
+
+  const pricesStale = lastPriceUpdate.fecha
+    ? businessDaysSince(lastPriceUpdate.fecha) > 1
+    : true;
 
   return (
     <div className="page">
+      {/* ── Estado de precios ── */}
+      <RefreshPricesButton
+        lastUpdate={lastPriceUpdate.fecha}
+        lastHora={lastPriceUpdate.hora}
+        stale={pricesStale}
+      />
+
       {/* ── Métricas globales ── */}
       <div className="stats-grid">
         <StatCard label="Valor de la cartera" value={stats.valorCartera} />
+        <StatCard label="Bº Total"             value={stats.beneficioTotal}       colored />
         <StatCard label="Bº No realizado"     value={stats.beneficioNoRealizado} colored />
         <StatCard label="Bº Realizado"         value={stats.beneficioRealizado}   colored />
-        <StatCard label="Bº Total"             value={stats.beneficioTotal}       colored />
-        <StatCardPct label="CAGR" value={stats.cagr} colored subtitle="Rentabilidad anualizada" />
-        <StatCardPct
+        <StatCardRaw
+          label="CAGR"
+          display={stats.cagr === null ? "—" : `${stats.cagr.toFixed(1)}%`}
+          colored={stats.cagr !== null && stats.cagr >= 0}
+        />
+        <StatCardRaw
           label="Win Rate"
-          value={stats.winRate}
-          subtitle={stats.totalCerradas > 0 ? `${stats.winCount} de ${stats.totalCerradas} ops.` : "Sin operaciones cerradas"}
+          display={stats.totalCerradas > 0 ? `${stats.winCount} / ${stats.totalCerradas}` : "—"}
         />
       </div>
-
-      {/* ── Acciones ── */}
-      <ActionBar posiciones={posiciones} openTickers={openTickers} />
 
       {/* ── Portfolio ── */}
       <section className="inv-section">
         <div className="inv-section-header">
           <h2 className="inv-section-title">Portfolio</h2>
-          <Link href="/inversiones/posiciones" className="btn btn-secondary btn-sm">
-            Ver todas las posiciones →
-          </Link>
+          <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+            <ActionBar posiciones={posiciones} openTickers={openTickers} />
+            <Link href="/inversiones/posiciones" className="btn btn-secondary btn-sm">
+              Ver todas las posiciones →
+            </Link>
+          </div>
         </div>
 
         <TabsContainer
@@ -116,6 +109,11 @@ export default async function Inversiones() {
                 ),
             },
             {
+              id: "por-ticker",
+              label: "Por ticker",
+              content: <TickerTable data={tickersAll} />,
+            },
+            {
               id: "pl-anio",
               label: "P/L por Año",
               content: <PLByYear data={plByYear} />,
@@ -124,6 +122,20 @@ export default async function Inversiones() {
               id: "flujo",
               label: "Flujo de Caja",
               content: <FlujoCaja data={flujoCaja} />,
+            },
+            {
+              id: "desglose",
+              label: "Desglose P/L",
+              content: <DesglosePL data={desglosePL} />,
+            },
+            {
+              id: "heatmap",
+              label: "Heatmap",
+              content: (
+                <div className="empty-state">
+                  <p>Vista en construcción — próximamente.</p>
+                </div>
+              ),
             },
           ]}
         />

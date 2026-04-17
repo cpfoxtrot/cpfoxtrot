@@ -15,11 +15,21 @@ export interface TickerSummary {
   ticker: string;
   valorCoste: number;
   valorActual: number;
-  otros: number;
   beneficioNoRealizado: number;
   beneficioRealizado: number;
   beneficioTotal: number;
   rentabilidad: number;
+}
+
+export interface DesglosePLRow {
+  ticker: string;
+  comisiones: number;
+  impuestos: number;
+  dividendos: number;
+  incentivos: number;
+  efectoDivisa: number;
+  efectoPrecio: number;
+  plTotal: number;
 }
 
 export interface PosicionRow {
@@ -41,7 +51,9 @@ export interface PosicionRow {
 
 export interface PortfolioData {
   stats: PortfolioStats;
-  tickers: TickerSummary[];
+  tickers: TickerSummary[];       // open positions only (Resumen tab)
+  tickersAll: TickerSummary[];    // all positions per ticker (Por ticker tab)
+  desglosePL: DesglosePLRow[];    // P/L breakdown per ticker
   posiciones: PosicionRow[];
   openTickers: string[];
 }
@@ -56,7 +68,16 @@ interface Posicion {
   dividendos: number;
   incentivos: number;
   impuesto: number;
+  tc_compra: number | null;
   estado: string;
+}
+
+/** "DD-MM-YY" → YYYYMMDD integer, safe for chronological comparison */
+function ddmmyyToNum(s: string | null): number {
+  if (!s) return 0;
+  const [d, m, yy] = s.split("-");
+  if (!d || !m || !yy) return 0;
+  return parseInt(`20${yy}${m.padStart(2, "0")}${d.padStart(2, "0")}`);
 }
 
 function storedToDate(s: string | null): Date | null {
@@ -70,6 +91,8 @@ function storedToDate(s: string | null): Date | null {
 const empty: PortfolioData = {
   stats: { valorCartera: 0, beneficioNoRealizado: 0, beneficioRealizado: 0, beneficioTotal: 0, cagr: null, winRate: null, winCount: 0, totalCerradas: 0 },
   tickers: [],
+  tickersAll: [],
+  desglosePL: [],
   posiciones: [],
   openTickers: [],
 };
@@ -91,92 +114,143 @@ export async function getPortfolioData(): Promise<PortfolioData> {
   const posAbiertas = posiciones.filter((p: Posicion) => p.estado?.toUpperCase() === "ABIERTA");
   const posCerradas = posiciones.filter((p: Posicion) => p.estado?.toUpperCase() === "CERRADA");
 
-  // Precio más reciente por ticker (solo tickers con posición abierta)
   const tickersAbiertos = [...new Set(posAbiertas.map((p: Posicion) => p.ticker))] as string[];
+  const allDistinctTickers = [...new Set(posiciones.map((p: Posicion) => p.ticker))] as string[];
 
+  // Fetch latest price for open tickers + USD/EUR rate.
+  // DD-MM-YY doesn't sort as string — pick max in JS.
   const preciosMap: Record<string, number> = {};
-  await Promise.all(
-    tickersAbiertos.map(async (ticker) => {
-      const { data, error: e } = await supabase
-        .from("precios")
-        .select("precio")
-        .eq("ticker", ticker)
-        .order("fecha", { ascending: false })
-        .limit(1)
-        .single();
-      if (e) console.error(`[portfolio] Sin precio para ${ticker}:`, e.message);
-      preciosMap[ticker] = data?.precio ?? 0;
-    })
-  );
+  const priceTickers = [...tickersAbiertos, "USD/EUR"];
+  if (priceTickers.length > 0) {
+    const { data: allPrices } = await supabase
+      .from("precios")
+      .select("ticker, fecha, precio")
+      .in("ticker", priceTickers);
 
-  // Resumen por ticker
+    const latestDateNum: Record<string, number> = {};
+    (allPrices ?? []).forEach((row: { ticker: string; fecha: string; precio: number }) => {
+      const n = ddmmyyToNum(row.fecha);
+      if (!latestDateNum[row.ticker] || n > latestDateNum[row.ticker]) {
+        latestDateNum[row.ticker] = n;
+        preciosMap[row.ticker] = row.precio;
+      }
+    });
+  }
+
+  const tcActual = preciosMap["USD/EUR"] ?? 1;
+
+  // ── Resumen tab: open positions only ──────────────────────────────────────
+  // beneficioRealizado = realized cash flows from open positions
+  // (dividendos received, incentivos, minus commissions paid, minus impuestos)
   const tickers: TickerSummary[] = tickersAbiertos
+    .map((ticker) => {
+      const abiertas = posAbiertas.filter((p: Posicion) => p.ticker === ticker);
+      const precioActual = preciosMap[ticker] ?? 0;
+
+      const valorCoste = abiertas.reduce((s: number, p: Posicion) => s + p.precio_compra * p.cantidad, 0);
+      const valorActual = abiertas.reduce((s: number, p: Posicion) => s + precioActual * p.cantidad, 0);
+      const beneficioNoRealizado = valorActual - valorCoste;
+      const beneficioRealizado = abiertas.reduce(
+        (s: number, p: Posicion) =>
+          s - (p.com_compra ?? 0) + (p.dividendos ?? 0) + (p.incentivos ?? 0) - (p.impuesto ?? 0),
+        0
+      );
+      const beneficioTotal = beneficioNoRealizado + beneficioRealizado;
+      const rentabilidad = valorCoste > 0 ? (beneficioTotal / valorCoste) * 100 : 0;
+
+      return { ticker, valorCoste, valorActual, beneficioNoRealizado, beneficioRealizado, beneficioTotal, rentabilidad };
+    })
+    .sort((a, b) => b.valorActual - a.valorActual);
+
+  // ── Por ticker tab: all positions (open + closed) ─────────────────────────
+  const tickersAll: TickerSummary[] = allDistinctTickers
     .map((ticker) => {
       const abiertas = posAbiertas.filter((p: Posicion) => p.ticker === ticker);
       const cerradas = posCerradas.filter((p: Posicion) => p.ticker === ticker);
       const precioActual = preciosMap[ticker] ?? 0;
 
-      // Valor coste = Σ(precio_compra × cantidad) posiciones abiertas
-      const valorCoste = abiertas.reduce(
+      const valorCoste = [...abiertas, ...cerradas].reduce(
         (s: number, p: Posicion) => s + p.precio_compra * p.cantidad, 0
       );
-      // Valor actual = Σ(precio_actual × cantidad) posiciones abiertas
-      const valorActual = abiertas.reduce(
-        (s: number, p: Posicion) => s + precioActual * p.cantidad, 0
+      const valorActual = abiertas.reduce((s: number, p: Posicion) => s + precioActual * p.cantidad, 0);
+      const beneficioNoRealizado = abiertas.reduce(
+        (s: number, p: Posicion) => s + (precioActual - p.precio_compra) * p.cantidad, 0
       );
-      // Otros = comisiones, dividendos, incentivos, impuesto de posiciones abiertas
-      const otros = abiertas.reduce(
-        (s: number, p: Posicion) =>
-          s - (p.com_compra ?? 0) + (p.dividendos ?? 0) + (p.incentivos ?? 0) - (p.impuesto ?? 0),
-        0
-      );
-      // Bº No Realizado = diferencia de precio pura (sin Otros)
-      const beneficioNoRealizado = valorActual - valorCoste;
-      // Bº Realizado = posiciones cerradas del mismo ticker (incluye todos los costes)
-      const beneficioRealizado = cerradas.reduce(
-        (s: number, p: Posicion) =>
-          s +
-          ((p.precio_venta ?? 0) - p.precio_compra) * p.cantidad -
-          (p.com_compra ?? 0) -
-          (p.com_venta ?? 0) +
-          (p.dividendos ?? 0) +
-          (p.incentivos ?? 0) -
-          (p.impuesto ?? 0),
-        0
-      );
-      const beneficioTotal = beneficioNoRealizado + beneficioRealizado + otros;
+      // Realized: P&L from closed positions + cash flows from open positions
+      const beneficioRealizado =
+        cerradas.reduce(
+          (s: number, p: Posicion) =>
+            s + ((p.precio_venta ?? 0) - p.precio_compra) * p.cantidad
+              - (p.com_compra ?? 0) - (p.com_venta ?? 0)
+              + (p.dividendos ?? 0) + (p.incentivos ?? 0) - (p.impuesto ?? 0),
+          0
+        ) +
+        abiertas.reduce(
+          (s: number, p: Posicion) =>
+            s - (p.com_compra ?? 0) + (p.dividendos ?? 0) + (p.incentivos ?? 0) - (p.impuesto ?? 0),
+          0
+        );
+      const beneficioTotal = beneficioNoRealizado + beneficioRealizado;
       const rentabilidad = valorCoste > 0 ? (beneficioTotal / valorCoste) * 100 : 0;
 
-      return {
-        ticker,
-        valorCoste,
-        valorActual,
-        otros,
-        beneficioNoRealizado,
-        beneficioRealizado,
-        beneficioTotal,
-        rentabilidad,
-      };
+      return { ticker, valorCoste, valorActual, beneficioNoRealizado, beneficioRealizado, beneficioTotal, rentabilidad };
     })
     .sort((a, b) => b.valorActual - a.valorActual);
 
-  // Stats globales
+  // ── Desglose P/L ──────────────────────────────────────────────────────────
+  const desglosePL: DesglosePLRow[] = allDistinctTickers.map((ticker) => {
+    const rows = posiciones.filter((p: Posicion) => p.ticker === ticker);
+    let comisiones = 0, impuestos = 0, dividendos = 0, incentivos = 0,
+        efectoDivisa = 0, efectoPrecio = 0;
+
+    for (const p of rows as Posicion[]) {
+      comisiones -= (p.com_compra ?? 0) + (p.com_venta ?? 0);
+      impuestos  -= (p.impuesto ?? 0);
+      dividendos += (p.dividendos ?? 0);
+      incentivos += (p.incentivos ?? 0);
+
+      if (p.estado?.toUpperCase() === "ABIERTA") {
+        const precioActual = preciosMap[p.ticker] ?? 0;
+        const tc = p.tc_compra && p.tc_compra !== 1 ? p.tc_compra : null;
+        if (tc) {
+          // USD open position — separate price vs FX effect
+          const precioActualUSD = precioActual / tcActual;
+          const precioCompraUSD = p.precio_compra / tc;
+          efectoPrecio += p.cantidad * (precioActualUSD - precioCompraUSD) * tc;
+          efectoDivisa += p.cantidad * precioActualUSD * (tcActual - tc);
+        } else {
+          efectoPrecio += (precioActual - p.precio_compra) * p.cantidad;
+        }
+      } else {
+        // Closed position — no tc_venta available, absorb full gain into efectoPrecio
+        efectoPrecio += ((p.precio_venta ?? 0) - p.precio_compra) * p.cantidad;
+      }
+    }
+
+    const plTotal = comisiones + impuestos + dividendos + incentivos + efectoDivisa + efectoPrecio;
+    return { ticker, comisiones, impuestos, dividendos, incentivos, efectoDivisa, efectoPrecio, plTotal };
+  }).sort((a, b) => Math.abs(b.plTotal) - Math.abs(a.plTotal));
+
+  // ── Stats globales ────────────────────────────────────────────────────────
   const valorCartera = tickers.reduce((s, t) => s + t.valorActual, 0);
   const beneficioNoRealizado = tickers.reduce((s, t) => s + t.beneficioNoRealizado, 0);
-  // Bº Realizado global = TODAS las posiciones cerradas (aunque el ticker ya no esté abierto)
-  const beneficioRealizado = posCerradas.reduce(
-    (s: number, p: Posicion) =>
-      s +
-      ((p.precio_venta ?? 0) - p.precio_compra) * p.cantidad -
-      (p.com_compra ?? 0) -
-      (p.com_venta ?? 0) +
-      (p.dividendos ?? 0) +
-      (p.incentivos ?? 0) -
-      (p.impuesto ?? 0),
-    0
-  );
 
-  // CAGR (annualised return on open positions)
+  // Bº Realizado = P&L from closed positions + realized cash flows from ALL open positions
+  const beneficioRealizado =
+    posCerradas.reduce(
+      (s: number, p: Posicion) =>
+        s + ((p.precio_venta ?? 0) - p.precio_compra) * p.cantidad
+          - (p.com_compra ?? 0) - (p.com_venta ?? 0)
+          + (p.dividendos ?? 0) + (p.incentivos ?? 0) - (p.impuesto ?? 0),
+      0
+    ) +
+    posAbiertas.reduce(
+      (s: number, p: Posicion) =>
+        s - (p.com_compra ?? 0) + (p.dividendos ?? 0) + (p.incentivos ?? 0) - (p.impuesto ?? 0),
+      0
+    );
+
+  // CAGR
   const allDates = (posiciones as PosicionRow[])
     .map((p) => storedToDate(p.fecha_compra))
     .filter((d): d is Date => d !== null);
@@ -189,16 +263,13 @@ export async function getPortfolioData(): Promise<PortfolioData> {
       ? (Math.pow(valorCartera / totalCosteAbiertas, 1 / years) - 1) * 100
       : null;
 
-  // Win/Loss rate (closed positions)
+  // Win/Loss rate
   const totalCerradas = posCerradas.length;
   const winCount = posCerradas.filter((p: Posicion) => {
     const pl =
-      ((p.precio_venta ?? 0) - p.precio_compra) * p.cantidad -
-      (p.com_compra ?? 0) -
-      (p.com_venta ?? 0) +
-      (p.dividendos ?? 0) +
-      (p.incentivos ?? 0) -
-      (p.impuesto ?? 0);
+      ((p.precio_venta ?? 0) - p.precio_compra) * p.cantidad
+        - (p.com_compra ?? 0) - (p.com_venta ?? 0)
+        + (p.dividendos ?? 0) + (p.incentivos ?? 0) - (p.impuesto ?? 0);
     return pl > 0;
   }).length;
   const winRate: number | null = totalCerradas > 0 ? (winCount / totalCerradas) * 100 : null;
@@ -215,6 +286,8 @@ export async function getPortfolioData(): Promise<PortfolioData> {
       totalCerradas,
     },
     tickers,
+    tickersAll,
+    desglosePL,
     posiciones: posiciones as PosicionRow[],
     openTickers: tickersAbiertos,
   };

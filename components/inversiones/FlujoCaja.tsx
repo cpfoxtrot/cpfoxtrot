@@ -1,10 +1,22 @@
+"use client";
+
+import { useState } from "react";
+import { Fragment } from "react";
 import type { FlujoCajaRow } from "@/lib/data/analytics";
 import { fmtEUR } from "@/lib/utils/format";
 
-const color = (v: number) =>
-  v > 0 ? "stat-positive" : v < 0 ? "stat-negative" : "";
+const col = (v: number) => (v > 0 ? "stat-positive" : v < 0 ? "stat-negative" : "");
 
 export default function FlujoCaja({ data }: { data: FlujoCajaRow[] }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (year: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(year) ? next.delete(year) : next.add(year);
+      return next;
+    });
+
   if (data.length === 0) {
     return (
       <div className="empty-state">
@@ -29,7 +41,7 @@ export default function FlujoCaja({ data }: { data: FlujoCajaRow[] }) {
       <table className="data-table">
         <thead>
           <tr>
-            <th style={{ textAlign: "left" }}>Año</th>
+            <th style={{ textAlign: "left" }}>Periodo</th>
             <th>Compras</th>
             <th>Ventas</th>
             <th>Dividendos</th>
@@ -39,24 +51,55 @@ export default function FlujoCaja({ data }: { data: FlujoCajaRow[] }) {
         </thead>
         <tbody>
           {data.map((row) => (
-            <tr key={row.year}>
-              <td className="ticker-cell">{row.year}</td>
-              <td className="stat-negative">{fmtEUR(-row.compras)}</td>
-              <td className="stat-positive">{fmtEUR(row.ventas)}</td>
-              <td className="stat-positive">{fmtEUR(row.dividendos)}</td>
-              <td className="stat-negative">{fmtEUR(-row.impuestos)}</td>
-              <td className={color(row.neto)}>{fmtEUR(row.neto)}</td>
-            </tr>
+            <Fragment key={row.year}>
+              {/* Year row */}
+              <tr
+                onClick={() => row.months.length > 0 && toggle(row.year)}
+                style={{
+                  cursor: row.months.length > 0 ? "pointer" : "default",
+                  fontWeight: "var(--font-semibold)",
+                }}
+              >
+                <td className="ticker-cell">
+                  {row.months.length > 0 && (
+                    <span style={{ marginRight: "var(--space-2)", fontSize: "var(--text-xs)", opacity: 0.5 }}>
+                      {expanded.has(row.year) ? "▼" : "▶"}
+                    </span>
+                  )}
+                  {row.year}
+                </td>
+                <td className="stat-negative">{fmtEUR(-row.compras)}</td>
+                <td>{row.ventas > 0 ? <span className="stat-positive">{fmtEUR(row.ventas)}</span> : "—"}</td>
+                <td>{row.dividendos > 0 ? <span className="stat-positive">{fmtEUR(row.dividendos)}</span> : "—"}</td>
+                <td>{row.impuestos > 0 ? <span className="stat-negative">{fmtEUR(-row.impuestos)}</span> : "—"}</td>
+                <td className={col(row.neto)}>{fmtEUR(row.neto)}</td>
+              </tr>
+
+              {/* Month sub-rows */}
+              {expanded.has(row.year) &&
+                row.months.map((m) => (
+                  <tr key={m.key} style={{ background: "var(--color-surface)" }}>
+                    <td style={{ textAlign: "left", paddingLeft: "var(--space-8)", color: "var(--color-muted)", fontStyle: "italic" }}>
+                      {m.label}
+                    </td>
+                    <td className="stat-negative">{fmtEUR(-m.compras)}</td>
+                    <td>{m.ventas > 0 ? <span className="stat-positive">{fmtEUR(m.ventas)}</span> : "—"}</td>
+                    <td>{m.dividendos > 0 ? <span className="stat-positive">{fmtEUR(m.dividendos)}</span> : "—"}</td>
+                    <td>{m.impuestos > 0 ? <span className="stat-negative">{fmtEUR(-m.impuestos)}</span> : "—"}</td>
+                    <td className={col(m.neto)}>{fmtEUR(m.neto)}</td>
+                  </tr>
+                ))}
+            </Fragment>
           ))}
         </tbody>
         <tfoot>
-          <tr style={{ fontWeight: "var(--font-semibold)", borderTop: "2px solid var(--color-border)" }}>
-            <td className="ticker-cell">Total</td>
-            <td className="stat-negative">{fmtEUR(-totals.compras)}</td>
-            <td className="stat-positive">{fmtEUR(totals.ventas)}</td>
-            <td className="stat-positive">{fmtEUR(totals.dividendos)}</td>
-            <td className="stat-negative">{fmtEUR(-totals.impuestos)}</td>
-            <td className={color(totals.neto)}>{fmtEUR(totals.neto)}</td>
+          <tr style={{ fontWeight: "var(--font-semibold)" }}>
+            <td className="ticker-cell" style={{ borderTop: "2px solid var(--color-border)" }}>Total</td>
+            <td className="stat-negative" style={{ borderTop: "2px solid var(--color-border)" }}>{fmtEUR(-totals.compras)}</td>
+            <td style={{ borderTop: "2px solid var(--color-border)" }}>{totals.ventas > 0 ? <span className="stat-positive">{fmtEUR(totals.ventas)}</span> : "—"}</td>
+            <td style={{ borderTop: "2px solid var(--color-border)" }}>{totals.dividendos > 0 ? <span className="stat-positive">{fmtEUR(totals.dividendos)}</span> : "—"}</td>
+            <td style={{ borderTop: "2px solid var(--color-border)" }}>{totals.impuestos > 0 ? <span className="stat-negative">{fmtEUR(-totals.impuestos)}</span> : "—"}</td>
+            <td className={col(totals.neto)} style={{ borderTop: "2px solid var(--color-border)" }}>{fmtEUR(totals.neto)}</td>
           </tr>
         </tfoot>
       </table>

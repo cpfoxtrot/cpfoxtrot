@@ -4,8 +4,12 @@ import "./globals.css";
 import Nav from "@/components/Nav";
 
 export const metadata: Metadata = {
-  title: "Mi Proyecto",
-  description: "Proyecto base con Next.js y Supabase",
+  title: "CPFoxtrot",
+  description: "Dashboard de inversiones y finanzas personales",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
