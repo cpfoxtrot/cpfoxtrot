@@ -26,3 +26,15 @@ export const toInputDate = (stored: string): string => {
 
 /** Today as "YYYY-MM-DD" for <input type="date"> */
 export const todayISO = (): string => new Date().toISOString().split("T")[0];
+
+/** "DD-MM-YY" → YYYYMMDD integer, safe for chronological comparison */
+export function ddmmyyToNum(s: string | null): number {
+  if (!s) return 0;
+  const [d, m, yy] = s.split("-");
+  if (!d || !m || !yy) return 0;
+  return parseInt(`20${yy}${m.padStart(2, "0")}${d.padStart(2, "0")}`);
+}
+
+/** CSS class for positive/negative P&L values */
+export const plColor = (v: number): string =>
+  v > 0 ? "stat-positive" : v < 0 ? "stat-negative" : "";

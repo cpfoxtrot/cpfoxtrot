@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { ddmmyyToNum } from "@/lib/utils/format";
 
 /** Returns the most recent price update date + hour from the precios table */
 export async function getLastPriceUpdate(): Promise<{ fecha: string | null; hora: string | null }> {
@@ -15,16 +16,10 @@ export async function getLastPriceUpdate(): Promise<{ fecha: string | null; hora
 
   if (rows.length === 0) return { fecha: null, hora: null };
 
-  const toNum = (s: string) => {
-    const [d, m, yy] = s.split("-");
-    if (!d || !m || !yy) return 0;
-    return parseInt(`20${yy}${m.padStart(2, "0")}${d.padStart(2, "0")}`);
-  };
-
   let maxNum = 0;
   let result: { fecha: string | null; hora: string | null } = { fecha: null, hora: null };
   for (const row of rows) {
-    const n = toNum(row.fecha);
+    const n = ddmmyyToNum(row.fecha);
     if (n > maxNum) {
       maxNum = n;
       result = { fecha: row.fecha, hora: (row as { hora?: string | null }).hora ?? null };

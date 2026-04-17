@@ -1,8 +1,5 @@
 import type { TickerSummary } from "@/lib/data/portfolio";
-import { fmtEUR } from "@/lib/utils/format";
-
-const color = (v: number) =>
-  v > 0 ? "stat-positive" : v < 0 ? "stat-negative" : "";
+import { fmtEUR, plColor as color } from "@/lib/utils/format";
 
 export default function TickerTable({ data }: { data: TickerSummary[] }) {
   if (data.length === 0) return null;

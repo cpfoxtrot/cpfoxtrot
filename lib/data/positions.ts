@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { ddmmyyToNum } from "@/lib/utils/format";
 import type { PosicionRow } from "./portfolio";
 
 export interface PositionDetail extends PosicionRow {
@@ -9,14 +10,6 @@ export interface PositionDetail extends PosicionRow {
   beneficioNoRealizado: number;
   beneficioTotal: number;
   rentabilidad: number;
-}
-
-/** Convert "DD-MM-YY" to YYYYMMDD integer for date comparison */
-function ddmmyyToNum(s: string | null): number {
-  if (!s) return 0;
-  const [d, m, yy] = s.split("-");
-  if (!d || !m || !yy) return 0;
-  return parseInt(`20${yy}${m.padStart(2, "0")}${d.padStart(2, "0")}`);
 }
 
 export function isOpenOn(

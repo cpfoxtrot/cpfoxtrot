@@ -1,7 +1,5 @@
 import type { DesglosePLRow } from "@/lib/data/portfolio";
-import { fmtEUR } from "@/lib/utils/format";
-
-const col = (v: number) => (v > 0 ? "stat-positive" : v < 0 ? "stat-negative" : "");
+import { fmtEUR, plColor as col } from "@/lib/utils/format";
 
 export default function DesglosePL({ data }: { data: DesglosePLRow[] }) {
   if (data.length === 0) {

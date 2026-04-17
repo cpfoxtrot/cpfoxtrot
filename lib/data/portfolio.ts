@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { ddmmyyToNum } from "@/lib/utils/format";
 
 export interface PortfolioStats {
   valorCartera: number;
@@ -80,14 +81,6 @@ interface Posicion {
   impuesto: number;
   tc_compra: number | null;
   estado: string;
-}
-
-/** "DD-MM-YY" → YYYYMMDD integer, safe for chronological comparison */
-function ddmmyyToNum(s: string | null): number {
-  if (!s) return 0;
-  const [d, m, yy] = s.split("-");
-  if (!d || !m || !yy) return 0;
-  return parseInt(`20${yy}${m.padStart(2, "0")}${d.padStart(2, "0")}`);
 }
 
 function storedToDate(s: string | null): Date | null {
