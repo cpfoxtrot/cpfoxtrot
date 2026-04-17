@@ -3,8 +3,6 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { TICKER_CONFIG } from "@/lib/catalogs/ticker-config";
 import { toStoredDate } from "@/lib/utils/format";
 
-const yf = new YahooFinance();
-
 export interface PriceUpdateLog {
   ticker: string;
   yahoo: string | null;
@@ -20,6 +18,10 @@ export interface PriceUpdateResult {
 }
 
 export async function runPriceUpdate(): Promise<PriceUpdateResult> {
+  // Instantiate inside the function — avoids module-level side effects
+  // that break when this module is imported in a server component render.
+  const yf = new YahooFinance();
+
   const today = toStoredDate(new Date().toISOString().split("T")[0]);
   const hora = new Date().toLocaleTimeString("es-ES", {
     timeZone: "Europe/Madrid",
@@ -84,7 +86,6 @@ export async function runPriceUpdate(): Promise<PriceUpdateResult> {
     .upsert(rows.map((r) => ({ ...r, hora })), { onConflict: "ticker,fecha" });
 
   if (upsertError?.message?.includes("column")) {
-    // hora column not yet added — retry without it
     ({ error: upsertError } = await supabaseAdmin
       .from("precios")
       .upsert(rows, { onConflict: "ticker,fecha" }));
@@ -101,61 +102,4 @@ export async function runPriceUpdate(): Promise<PriceUpdateResult> {
   const error = log.filter((r) => r.status.startsWith("error") || r.status.startsWith("sin")).length;
 
   return { date: today, usdEurRate, summary: { ok, skip, error }, log };
-}
-
-/** Returns the most recent price update date + hour from the precios table */
-export async function getLastPriceUpdate(): Promise<{ fecha: string | null; hora: string | null }> {
-  // Try with hora column first; gracefully handle if it doesn't exist yet
-  const { data, error } = await supabaseAdmin.from("precios").select("fecha, hora");
-
-  let rows: Array<{ fecha: string; hora?: string | null }>;
-  if (error) {
-    const { data: fallback } = await supabaseAdmin.from("precios").select("fecha");
-    rows = fallback ?? [];
-  } else {
-    rows = data ?? [];
-  }
-
-  if (rows.length === 0) return { fecha: null, hora: null };
-
-  const toNum = (s: string) => {
-    const [d, m, yy] = s.split("-");
-    if (!d || !m || !yy) return 0;
-    return parseInt(`20${yy}${m.padStart(2, "0")}${d.padStart(2, "0")}`);
-  };
-
-  let maxNum = 0;
-  let result: { fecha: string | null; hora: string | null } = { fecha: null, hora: null };
-  for (const row of rows) {
-    const n = toNum(row.fecha);
-    if (n > maxNum) {
-      maxNum = n;
-      result = { fecha: row.fecha, hora: (row as { hora?: string | null }).hora ?? null };
-    }
-  }
-  return result;
-}
-
-/** Business days (Mon–Fri) elapsed since the given DD-MM-YY date */
-export function businessDaysSince(ddmmyy: string): number {
-  const [d, m, yy] = ddmmyy.split("-");
-  if (!d || !m || !yy) return 999;
-
-  const lastUpdate = new Date(`20${yy}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
-  lastUpdate.setHours(0, 0, 0, 0);
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  if (lastUpdate >= today) return 0;
-
-  let count = 0;
-  const cursor = new Date(lastUpdate);
-  cursor.setDate(cursor.getDate() + 1);
-  while (cursor <= today) {
-    const day = cursor.getDay();
-    if (day !== 0 && day !== 6) count++;
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return count;
 }

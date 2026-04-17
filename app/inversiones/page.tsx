@@ -3,7 +3,7 @@ import { getPortfolioData } from "@/lib/data/portfolio";
 import { calcPLByYear, calcFlujoCaja } from "@/lib/data/analytics";
 import type { DividendRow } from "@/lib/data/analytics";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { getLastPriceUpdate, businessDaysSince } from "@/lib/data/update-prices";
+import { getLastPriceUpdate, businessDaysSince } from "@/lib/data/price-status";
 import { fmtEUR } from "@/lib/utils/format";
 import PortfolioChart from "@/components/inversiones/PortfolioChart";
 import TickerTable from "@/components/inversiones/TickerTable";
