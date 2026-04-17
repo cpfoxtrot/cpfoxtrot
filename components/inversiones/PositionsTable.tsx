@@ -2,12 +2,9 @@
 
 import { useState } from "react";
 import type { PositionDetail } from "@/lib/data/positions";
-import { fmtEUR } from "@/lib/utils/format";
+import { fmtEUR, plColor as col } from "@/lib/utils/format";
 
 type Tab = "abiertas" | "cerradas" | "todas";
-
-const col = (v: number) =>
-  v > 0 ? "stat-positive" : v < 0 ? "stat-negative" : "";
 
 export default function PositionsTable({ data }: { data: PositionDetail[] }) {
   const [tab, setTab] = useState<Tab>("abiertas");

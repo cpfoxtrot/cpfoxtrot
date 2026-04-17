@@ -1,8 +1,5 @@
 import type { TickerSummary } from "@/lib/data/portfolio";
-import { fmtEUR } from "@/lib/utils/format";
-
-const color = (v: number) =>
-  v > 0 ? "stat-positive" : v < 0 ? "stat-negative" : "";
+import { fmtEUR, plColor } from "@/lib/utils/format";
 
 export default function TickerTable({ data }: { data: TickerSummary[] }) {
   if (data.length === 0) return null;
@@ -25,16 +22,16 @@ export default function TickerTable({ data }: { data: TickerSummary[] }) {
             <tr key={row.ticker}>
               <td className="ticker-cell">{row.ticker}</td>
               <td>{fmtEUR(row.valorActual)}</td>
-              <td className={color(row.beneficioNoRealizado)}>
+              <td className={plColor(row.beneficioNoRealizado)}>
                 {fmtEUR(row.beneficioNoRealizado)}
               </td>
-              <td className={color(row.beneficioRealizado)}>
+              <td className={plColor(row.beneficioRealizado)}>
                 {fmtEUR(row.beneficioRealizado)}
               </td>
-              <td className={color(row.beneficioTotal)}>
+              <td className={plColor(row.beneficioTotal)}>
                 {fmtEUR(row.beneficioTotal)}
               </td>
-              <td className={color(row.rentabilidad)}>
+              <td className={plColor(row.rentabilidad)}>
                 {row.rentabilidad.toFixed(2)}%
               </td>
             </tr>

@@ -15,9 +15,4 @@ export const routes: Route[] = [
     label: "Inversiones",
     description: "Gestión y seguimiento de inversiones",
   },
-    {
-    path: "/vuelos",
-    label: "Vuelos",
-    description: "Seguimientos de vuelos",
-  },
 ];

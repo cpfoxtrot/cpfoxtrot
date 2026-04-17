@@ -1,7 +1,5 @@
 import type { TickerEvolutionRow } from "@/lib/data/portfolio";
-import { fmtEUR } from "@/lib/utils/format";
-
-const col = (v: number) => (v > 0 ? "stat-positive" : v < 0 ? "stat-negative" : "");
+import { fmtEUR, plColor as col } from "@/lib/utils/format";
 
 function Cell({ v }: { v: number | null }) {
   if (v === null) return <td style={{ textAlign: "right", color: "var(--color-muted)" }}>—</td>;
