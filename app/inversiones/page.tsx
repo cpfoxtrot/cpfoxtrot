@@ -12,6 +12,7 @@ import TabsContainer from "@/components/inversiones/TabsContainer";
 import PLByYear from "@/components/inversiones/PLByYear";
 import FlujoCaja from "@/components/inversiones/FlujoCaja";
 import DesglosePL from "@/components/inversiones/DesglosePL";
+import PLEvolution from "@/components/inversiones/PLEvolution";
 import RefreshPricesButton from "@/components/inversiones/RefreshPricesButton";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ function StatCardRaw({ label, display, colored = false }: { label: string; displ
 }
 
 export default async function Inversiones() {
-  const [{ stats, tickers, tickersAll, desglosePL, posiciones, openTickers }, divResult, lastPriceUpdate] =
+  const [{ stats, tickers, tickersAll, desglosePL, tickerEvolution, posiciones, openTickers }, divResult, lastPriceUpdate] =
     await Promise.all([
       getPortfolioData(),
       supabaseAdmin.from("dividendos").select("ticker, fecha, importe"),
@@ -100,12 +101,15 @@ export default async function Inversiones() {
                     <p>No hay posiciones abiertas o no se pudieron cargar los datos.</p>
                   </div>
                 ) : (
-                  <div className="chart-table-grid">
-                    <div className="chart-wrap">
-                      <PortfolioChart tickers={tickers} total={stats.valorCartera} />
+                  <>
+                    <div className="chart-table-grid">
+                      <div className="chart-wrap">
+                        <PortfolioChart tickers={tickers} total={stats.valorCartera} />
+                      </div>
+                      <TickerTable data={tickers} />
                     </div>
-                    <TickerTable data={tickers} />
-                  </div>
+                    <PLEvolution data={tickerEvolution} />
+                  </>
                 ),
             },
             {

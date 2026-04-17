@@ -32,6 +32,14 @@ export interface DesglosePLRow {
   plTotal: number;
 }
 
+export interface TickerEvolutionRow {
+  ticker: string;
+  plHoy: number | null;
+  plAyer: number | null;
+  plSemana: number | null;
+  plMes: number | null;
+}
+
 export interface PosicionRow {
   id: number;
   ticker: string;
@@ -51,9 +59,10 @@ export interface PosicionRow {
 
 export interface PortfolioData {
   stats: PortfolioStats;
-  tickers: TickerSummary[];       // open positions only (Resumen tab)
-  tickersAll: TickerSummary[];    // all positions per ticker (Por ticker tab)
-  desglosePL: DesglosePLRow[];    // P/L breakdown per ticker
+  tickers: TickerSummary[];
+  tickersAll: TickerSummary[];
+  desglosePL: DesglosePLRow[];
+  tickerEvolution: TickerEvolutionRow[];
   posiciones: PosicionRow[];
   openTickers: string[];
 }
@@ -63,6 +72,7 @@ interface Posicion {
   cantidad: number;
   precio_compra: number;
   precio_venta: number | null;
+  fecha_venta: string | null;
   com_compra: number;
   com_venta: number | null;
   dividendos: number;
@@ -88,11 +98,35 @@ function storedToDate(s: string | null): Date | null {
   return new Date(`20${yy}-${m}-${d}`);
 }
 
+/** YYYYMMDD integer for N calendar days ago */
+function dateNumDaysAgo(days: number): number {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return parseInt(`${y}${m}${dd}`);
+}
+
+/** Latest price in the sorted array with dateNum ≤ target, or null */
+function priceOnOrBefore(
+  prices: { dateNum: number; precio: number }[],
+  target: number
+): number | null {
+  let result: number | null = null;
+  for (const p of prices) {
+    if (p.dateNum <= target) result = p.precio;
+    else break;
+  }
+  return result;
+}
+
 const empty: PortfolioData = {
   stats: { valorCartera: 0, beneficioNoRealizado: 0, beneficioRealizado: 0, beneficioTotal: 0, cagr: null, winRate: null, winCount: 0, totalCerradas: 0 },
   tickers: [],
   tickersAll: [],
   desglosePL: [],
+  tickerEvolution: [],
   posiciones: [],
   openTickers: [],
 };
@@ -117,9 +151,12 @@ export async function getPortfolioData(): Promise<PortfolioData> {
   const tickersAbiertos = [...new Set(posAbiertas.map((p: Posicion) => p.ticker))] as string[];
   const allDistinctTickers = [...new Set(posiciones.map((p: Posicion) => p.ticker))] as string[];
 
-  // Fetch latest price for open tickers + USD/EUR rate.
+  // Fetch all price history for open tickers + USD/EUR.
   // DD-MM-YY doesn't sort as string — pick max in JS.
   const preciosMap: Record<string, number> = {};
+  const usdEurHistory: Record<string, number> = {}; // fecha DD-MM-YY → USD/EUR rate
+  const pricesByTicker: Record<string, { dateNum: number; precio: number }[]> = {};
+
   const priceTickers = [...tickersAbiertos, "USD/EUR"];
   if (priceTickers.length > 0) {
     const { data: allPrices } = await supabase
@@ -130,18 +167,31 @@ export async function getPortfolioData(): Promise<PortfolioData> {
     const latestDateNum: Record<string, number> = {};
     (allPrices ?? []).forEach((row: { ticker: string; fecha: string; precio: number }) => {
       const n = ddmmyyToNum(row.fecha);
+
+      // Track latest price per ticker for current valuation
       if (!latestDateNum[row.ticker] || n > latestDateNum[row.ticker]) {
         latestDateNum[row.ticker] = n;
         preciosMap[row.ticker] = row.precio;
       }
+
+      // Full USD/EUR history for closed-position FX decomposition
+      if (row.ticker === "USD/EUR") {
+        usdEurHistory[row.fecha] = row.precio;
+      }
+
+      // All prices sorted for evolution table
+      if (!pricesByTicker[row.ticker]) pricesByTicker[row.ticker] = [];
+      pricesByTicker[row.ticker].push({ dateNum: n, precio: row.precio });
     });
+
+    for (const t of Object.keys(pricesByTicker)) {
+      pricesByTicker[t].sort((a, b) => a.dateNum - b.dateNum);
+    }
   }
 
   const tcActual = preciosMap["USD/EUR"] ?? 1;
 
   // ── Resumen tab: open positions only ──────────────────────────────────────
-  // beneficioRealizado = realized cash flows from open positions
-  // (dividendos received, incentivos, minus commissions paid, minus impuestos)
   const tickers: TickerSummary[] = tickersAbiertos
     .map((ticker) => {
       const abiertas = posAbiertas.filter((p: Posicion) => p.ticker === ticker);
@@ -176,7 +226,6 @@ export async function getPortfolioData(): Promise<PortfolioData> {
       const beneficioNoRealizado = abiertas.reduce(
         (s: number, p: Posicion) => s + (precioActual - p.precio_compra) * p.cantidad, 0
       );
-      // Realized: P&L from closed positions + cash flows from open positions
       const beneficioRealizado =
         cerradas.reduce(
           (s: number, p: Posicion) =>
@@ -213,7 +262,7 @@ export async function getPortfolioData(): Promise<PortfolioData> {
         const precioActual = preciosMap[p.ticker] ?? 0;
         const tc = p.tc_compra && p.tc_compra !== 1 ? p.tc_compra : null;
         if (tc) {
-          // USD open position — separate price vs FX effect
+          // USD open position — separate price vs FX effect using today's rate
           const precioActualUSD = precioActual / tcActual;
           const precioCompraUSD = p.precio_compra / tc;
           efectoPrecio += p.cantidad * (precioActualUSD - precioCompraUSD) * tc;
@@ -222,8 +271,18 @@ export async function getPortfolioData(): Promise<PortfolioData> {
           efectoPrecio += (precioActual - p.precio_compra) * p.cantidad;
         }
       } else {
-        // Closed position — no tc_venta available, absorb full gain into efectoPrecio
-        efectoPrecio += ((p.precio_venta ?? 0) - p.precio_compra) * p.cantidad;
+        // Closed position
+        const tc = p.tc_compra && p.tc_compra !== 1 ? p.tc_compra : null;
+        if (tc && p.fecha_venta) {
+          // USD closed position — use historical USD/EUR rate at fecha_venta
+          const tc_venta = usdEurHistory[p.fecha_venta] ?? tc;
+          const precioVentaUSD = (p.precio_venta ?? 0) / tc_venta;
+          const precioCompraUSD = p.precio_compra / tc;
+          efectoPrecio += p.cantidad * (precioVentaUSD - precioCompraUSD) * tc;
+          efectoDivisa += p.cantidad * precioVentaUSD * (tc_venta - tc);
+        } else {
+          efectoPrecio += ((p.precio_venta ?? 0) - p.precio_compra) * p.cantidad;
+        }
       }
     }
 
@@ -231,11 +290,36 @@ export async function getPortfolioData(): Promise<PortfolioData> {
     return { ticker, comisiones, impuestos, dividendos, incentivos, efectoDivisa, efectoPrecio, plTotal };
   }).sort((a, b) => Math.abs(b.plTotal) - Math.abs(a.plTotal));
 
+  // ── Evolución P/L (open tickers only) ────────────────────────────────────
+  const numHoy    = dateNumDaysAgo(0);
+  const numAyer   = dateNumDaysAgo(1);
+  const numSemana = dateNumDaysAgo(7);
+  const numMes    = dateNumDaysAgo(30);
+
+  const tickerEvolution: TickerEvolutionRow[] = tickersAbiertos.map((ticker) => {
+    const abiertas = posAbiertas.filter((p: Posicion) => p.ticker === ticker);
+    const prices = pricesByTicker[ticker] ?? [];
+    const coste = abiertas.reduce((s: number, p: Posicion) => s + p.precio_compra * p.cantidad, 0);
+
+    function plAt(target: number): number | null {
+      const price = priceOnOrBefore(prices, target);
+      if (price === null) return null;
+      return abiertas.reduce((s: number, p: Posicion) => s + p.cantidad * price, 0) - coste;
+    }
+
+    return {
+      ticker,
+      plHoy:    plAt(numHoy),
+      plAyer:   plAt(numAyer),
+      plSemana: plAt(numSemana),
+      plMes:    plAt(numMes),
+    };
+  });
+
   // ── Stats globales ────────────────────────────────────────────────────────
   const valorCartera = tickers.reduce((s, t) => s + t.valorActual, 0);
   const beneficioNoRealizado = tickers.reduce((s, t) => s + t.beneficioNoRealizado, 0);
 
-  // Bº Realizado = P&L from closed positions + realized cash flows from ALL open positions
   const beneficioRealizado =
     posCerradas.reduce(
       (s: number, p: Posicion) =>
@@ -288,6 +372,7 @@ export async function getPortfolioData(): Promise<PortfolioData> {
     tickers,
     tickersAll,
     desglosePL,
+    tickerEvolution,
     posiciones: posiciones as PosicionRow[],
     openTickers: tickersAbiertos,
   };
