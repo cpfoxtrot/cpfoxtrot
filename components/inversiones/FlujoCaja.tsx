@@ -3,9 +3,7 @@
 import { useState } from "react";
 import { Fragment } from "react";
 import type { FlujoCajaRow } from "@/lib/data/analytics";
-import { fmtEUR } from "@/lib/utils/format";
-
-const col = (v: number) => (v > 0 ? "stat-positive" : v < 0 ? "stat-negative" : "");
+import { fmtEUR, plColor as col } from "@/lib/utils/format";
 
 export default function FlujoCaja({ data }: { data: FlujoCajaRow[] }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());

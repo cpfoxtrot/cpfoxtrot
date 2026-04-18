@@ -1,6 +1,11 @@
 import type { TickerEvolutionRow } from "@/lib/data/portfolio";
 import { fmtEUR, plColor as col } from "@/lib/utils/format";
 
+function sumNullable(vals: (number | null)[]): number | null {
+  const nonNull = vals.filter((v): v is number => v !== null);
+  return nonNull.length > 0 ? nonNull.reduce((a, b) => a + b, 0) : null;
+}
+
 function Cell({ v }: { v: number | null }) {
   if (v === null) return <td style={{ textAlign: "right", color: "var(--color-muted)" }}>—</td>;
   return <td style={{ textAlign: "right" }} className={col(v)}>{fmtEUR(v)}</td>;
@@ -8,6 +13,11 @@ function Cell({ v }: { v: number | null }) {
 
 export default function PLEvolution({ data }: { data: TickerEvolutionRow[] }) {
   if (data.length === 0) return null;
+
+  const totHoy    = sumNullable(data.map((r) => r.plHoy));
+  const totAyer   = sumNullable(data.map((r) => r.plAyer));
+  const totSemana = sumNullable(data.map((r) => r.plSemana));
+  const totMes    = sumNullable(data.map((r) => r.plMes));
 
   return (
     <div className="data-table-wrap" style={{ marginTop: "var(--space-5)" }}>
@@ -35,6 +45,15 @@ export default function PLEvolution({ data }: { data: TickerEvolutionRow[] }) {
             </tr>
           ))}
         </tbody>
+        <tfoot>
+          <tr>
+            <td className="ticker-cell">Total</td>
+            <Cell v={totHoy} />
+            <Cell v={totAyer} />
+            <Cell v={totSemana} />
+            <Cell v={totMes} />
+          </tr>
+        </tfoot>
       </table>
     </div>
   );

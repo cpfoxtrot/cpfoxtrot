@@ -13,6 +13,36 @@ export default function PositionsTable({ data }: { data: PositionDetail[] }) {
   const cerradas = data.filter((p) => p.estado?.toUpperCase() === "CERRADA");
   const rows = tab === "abiertas" ? abiertas : tab === "cerradas" ? cerradas : data;
 
+  // Totals — abiertas
+  const totA = abiertas.reduce(
+    (acc, p) => ({
+      coste:   acc.coste   + p.precio_compra * p.cantidad,
+      actual:  acc.actual  + p.valorActual,
+      efP:     acc.efP     + p.efectoPrecio,
+      efD:     acc.efD     + p.efectoDivisa,
+      bnr:     acc.bnr     + p.beneficioNoRealizado,
+    }),
+    { coste: 0, actual: 0, efP: 0, efD: 0, bnr: 0 }
+  );
+  const rentabA = totA.coste > 0 ? (totA.bnr / totA.coste) * 100 : 0;
+
+  // Totals — cerradas
+  const totC = cerradas.reduce(
+    (acc, p) => ({
+      coste: acc.coste + p.precio_compra * p.cantidad,
+      div:   acc.div   + p.dividendos,
+      inc:   acc.inc   + p.incentivos,
+      com:   acc.com   + p.com_compra + (p.com_venta ?? 0),
+      imp:   acc.imp   + p.impuesto,
+      bt:    acc.bt    + p.beneficioTotal,
+    }),
+    { coste: 0, div: 0, inc: 0, com: 0, imp: 0, bt: 0 }
+  );
+  const rentabC = totC.coste > 0 ? (totC.bt / totC.coste) * 100 : 0;
+
+  // Totals — todas
+  const totT = data.reduce((acc, p) => acc + p.beneficioTotal, 0);
+
   return (
     <div>
       <div className="tabs-bar" style={{ marginBottom: "var(--space-5)" }}>
@@ -67,6 +97,21 @@ export default function PositionsTable({ data }: { data: PositionDetail[] }) {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={2} className="ticker-cell">Total</td>
+                <td>—</td>
+                <td>—</td>
+                <td>—</td>
+                <td>—</td>
+                <td>{fmtEUR(totA.coste)}</td>
+                <td>{fmtEUR(totA.actual)}</td>
+                <td className={col(totA.efP)}>{fmtEUR(totA.efP)}</td>
+                <td className={col(totA.efD)}>{fmtEUR(totA.efD)}</td>
+                <td className={col(totA.bnr)}>{fmtEUR(totA.bnr)}</td>
+                <td className={col(rentabA)}>{rentabA.toFixed(2)}%</td>
+              </tr>
+            </tfoot>
           </table>
         )}
 
@@ -108,6 +153,22 @@ export default function PositionsTable({ data }: { data: PositionDetail[] }) {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={2} className="ticker-cell">Total</td>
+                <td>—</td>
+                <td>—</td>
+                <td>—</td>
+                <td>—</td>
+                <td>—</td>
+                <td className="stat-positive">{fmtEUR(totC.div)}</td>
+                <td className="stat-positive">{fmtEUR(totC.inc)}</td>
+                <td className="stat-negative">{fmtEUR(-totC.com)}</td>
+                <td className="stat-negative">{fmtEUR(-totC.imp)}</td>
+                <td className={col(totC.bt)}>{fmtEUR(totC.bt)}</td>
+                <td className={col(rentabC)}>{rentabC.toFixed(2)}%</td>
+              </tr>
+            </tfoot>
           </table>
         )}
 
@@ -147,6 +208,13 @@ export default function PositionsTable({ data }: { data: PositionDetail[] }) {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={7} className="ticker-cell">Total</td>
+                <td className={col(totT)}>{fmtEUR(totT)}</td>
+                <td>—</td>
+              </tr>
+            </tfoot>
           </table>
         )}
       </div>
